@@ -1,11 +1,18 @@
 aws_region        = "us-east-1"
 availability_zones = ["us-east-1a", "us-east-1b"]
 owner             = "abdelkader-benaissi"
+deployment_profile = "lab"
+
+# Import or request an ACM certificate in aws_region, then use a matching name.
+certificate_arn    = "arn:aws:acm:us-east-1:123456789012:certificate/replace-me"
+application_domain = "sentinelaws.example.com"
+
+# Set when the domain is hosted in Route 53; otherwise create the ALB alias externally.
+route53_zone_id = null
 
 # Set to an address you control, or leave null to skip email subscription.
 alert_email = null
 
-# Cost-aware development defaults. Enable only during final HA validation.
-database_multi_az           = false
-database_deletion_protection = false
-
+# Use deployment_profile = "ha" only for final availability validation. It creates
+# two application instances, one NAT Gateway per AZ, Multi-AZ RDS, and deletion
+# protection. The lab profile remains chargeable but is cheaper and disposable.

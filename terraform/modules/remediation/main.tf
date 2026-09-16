@@ -33,6 +33,11 @@ resource "aws_dynamodb_table" "incidents" {
     kms_key_arn = var.kms_key_arn
   }
 
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
   tags = merge(var.tags, { DataClassification = "security-finding" })
 }
 
@@ -80,6 +85,30 @@ resource "aws_iam_role_policy_attachment" "waf_logs" {
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "quarantine_xray" {
+  role       = aws_iam_role.quarantine.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "waf_xray" {
+  role       = aws_iam_role.waf_block.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_sqs_queue" "quarantine_dlq" {
+  name                      = "${var.name}-quarantine-dlq"
+  message_retention_seconds = 1209600
+  kms_master_key_id         = var.kms_key_arn
+  tags                      = var.tags
+}
+
+resource "aws_sqs_queue" "waf_block_dlq" {
+  name                      = "${var.name}-waf-block-dlq"
+  message_retention_seconds = 1209600
+  kms_master_key_id         = var.kms_key_arn
+  tags                      = var.tags
+}
+
 data "aws_iam_policy_document" "quarantine" {
   statement {
     sid       = "DescribeTarget"
@@ -88,19 +117,14 @@ data "aws_iam_policy_document" "quarantine" {
   }
 
   statement {
-    sid       = "QuarantineManagedInstances"
-    actions   = ["ec2:ModifyInstanceAttribute"]
-    resources = ["arn:${data.aws_partition.current.partition}:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"]
-    condition {
-      test     = "StringEquals"
-      variable = "ec2:ResourceTag/SentinelAWSManaged"
-      values   = ["true"]
-    }
+    sid       = "QuarantineNetworkInterfaces"
+    actions   = ["ec2:ModifyNetworkInterfaceAttribute"]
+    resources = ["arn:${data.aws_partition.current.partition}:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*"]
   }
 
   statement {
     sid       = "WriteIncidentLedger"
-    actions   = ["dynamodb:PutItem"]
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem"]
     resources = [aws_dynamodb_table.incidents.arn]
   }
 
@@ -108,6 +132,18 @@ data "aws_iam_policy_document" "quarantine" {
     sid       = "PublishAlert"
     actions   = ["sns:Publish"]
     resources = [var.alert_topic_arn]
+  }
+
+  statement {
+    sid       = "SendFailureToDLQ"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.quarantine_dlq.arn]
+  }
+
+  statement {
+    sid       = "DecryptConfiguration"
+    actions   = ["kms:Decrypt"]
+    resources = [var.kms_key_arn]
   }
 }
 
@@ -131,7 +167,7 @@ data "aws_iam_policy_document" "waf_block" {
 
   statement {
     sid       = "WriteIncidentLedger"
-    actions   = ["dynamodb:PutItem"]
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem"]
     resources = [aws_dynamodb_table.incidents.arn]
   }
 
@@ -139,6 +175,18 @@ data "aws_iam_policy_document" "waf_block" {
     sid       = "PublishAlert"
     actions   = ["sns:Publish"]
     resources = [var.alert_topic_arn]
+  }
+
+  statement {
+    sid       = "SendFailureToDLQ"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.waf_block_dlq.arn]
+  }
+
+  statement {
+    sid       = "DecryptConfiguration"
+    actions   = ["kms:Decrypt"]
+    resources = [var.kms_key_arn]
   }
 }
 
@@ -148,36 +196,51 @@ resource "aws_iam_role_policy" "waf_block" {
   policy = data.aws_iam_policy_document.waf_block.json
 }
 
+#checkov:skip=CKV_AWS_117:The function calls regional AWS APIs only and does not need VPC access.
+#checkov:skip=CKV_AWS_272:Code signing is documented as a production control and omitted from this educational lab.
 resource "aws_lambda_function" "quarantine" {
-  function_name    = "${var.name}-quarantine-instance"
-  role             = aws_iam_role.quarantine.arn
-  runtime          = "python3.13"
-  handler          = "handler.lambda_handler"
-  filename         = data.archive_file.quarantine.output_path
-  source_code_hash = data.archive_file.quarantine.output_base64sha256
-  timeout          = 30
-  memory_size      = 128
+  function_name                  = "${var.name}-quarantine-instance"
+  role                           = aws_iam_role.quarantine.arn
+  runtime                        = "python3.13"
+  handler                        = "handler.lambda_handler"
+  filename                       = data.archive_file.quarantine.output_path
+  source_code_hash               = data.archive_file.quarantine.output_base64sha256
+  timeout                        = 30
+  memory_size                    = 128
+  kms_key_arn                    = var.kms_key_arn
+  reserved_concurrent_executions = 5
+
+  tracing_config { mode = "Active" }
+  dead_letter_config { target_arn = aws_sqs_queue.quarantine_dlq.arn }
 
   environment {
     variables = {
       QUARANTINE_SECURITY_GROUP_ID = aws_security_group.quarantine.id
       INCIDENT_TABLE_NAME          = aws_dynamodb_table.incidents.name
       ALERT_TOPIC_ARN              = var.alert_topic_arn
+      INCIDENT_TTL_DAYS            = tostring(var.incident_ttl_days)
     }
   }
 
   tags = var.tags
 }
 
+#checkov:skip=CKV_AWS_117:The function calls regional AWS APIs only and does not need VPC access.
+#checkov:skip=CKV_AWS_272:Code signing is documented as a production control and omitted from this educational lab.
 resource "aws_lambda_function" "waf_block" {
-  function_name    = "${var.name}-waf-ip-block"
-  role             = aws_iam_role.waf_block.arn
-  runtime          = "python3.13"
-  handler          = "handler.lambda_handler"
-  filename         = data.archive_file.waf_block.output_path
-  source_code_hash = data.archive_file.waf_block.output_base64sha256
-  timeout          = 30
-  memory_size      = 128
+  function_name                  = "${var.name}-waf-ip-block"
+  role                           = aws_iam_role.waf_block.arn
+  runtime                        = "python3.13"
+  handler                        = "handler.lambda_handler"
+  filename                       = data.archive_file.waf_block.output_path
+  source_code_hash               = data.archive_file.waf_block.output_base64sha256
+  timeout                        = 30
+  memory_size                    = 128
+  kms_key_arn                    = var.kms_key_arn
+  reserved_concurrent_executions = 5
+
+  tracing_config { mode = "Active" }
+  dead_letter_config { target_arn = aws_sqs_queue.waf_block_dlq.arn }
 
   environment {
     variables = {
@@ -185,6 +248,7 @@ resource "aws_lambda_function" "waf_block" {
       WAF_IP_SET_NAME     = var.waf_ip_set_name
       INCIDENT_TABLE_NAME = aws_dynamodb_table.incidents.name
       ALERT_TOPIC_ARN     = var.alert_topic_arn
+      INCIDENT_TTL_DAYS   = tostring(var.incident_ttl_days)
     }
   }
 
@@ -206,16 +270,70 @@ resource "aws_cloudwatch_event_rule" "high_severity_guardduty" {
   tags = var.tags
 }
 
+data "aws_iam_policy_document" "quarantine_dlq" {
+  statement {
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.quarantine_dlq.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.high_severity_guardduty.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "quarantine_dlq" {
+  queue_url = aws_sqs_queue.quarantine_dlq.id
+  policy    = data.aws_iam_policy_document.quarantine_dlq.json
+}
+
+data "aws_iam_policy_document" "waf_block_dlq" {
+  statement {
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.waf_block_dlq.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.high_severity_guardduty.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "waf_block_dlq" {
+  queue_url = aws_sqs_queue.waf_block_dlq.id
+  policy    = data.aws_iam_policy_document.waf_block_dlq.json
+}
+
 resource "aws_cloudwatch_event_target" "quarantine" {
   rule      = aws_cloudwatch_event_rule.high_severity_guardduty.name
   target_id = "quarantine-instance"
   arn       = aws_lambda_function.quarantine.arn
+
+  dead_letter_config { arn = aws_sqs_queue.quarantine_dlq.arn }
+  retry_policy {
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 2
+  }
 }
 
 resource "aws_cloudwatch_event_target" "waf_block" {
   rule      = aws_cloudwatch_event_rule.high_severity_guardduty.name
   target_id = "block-remote-ip"
   arn       = aws_lambda_function.waf_block.arn
+
+  dead_letter_config { arn = aws_sqs_queue.waf_block_dlq.arn }
+  retry_policy {
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 2
+  }
 }
 
 resource "aws_lambda_permission" "eventbridge_quarantine" {
@@ -236,14 +354,14 @@ resource "aws_lambda_permission" "eventbridge_waf" {
 
 resource "aws_cloudwatch_log_group" "quarantine" {
   name              = "/aws/lambda/${aws_lambda_function.quarantine.function_name}"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
   tags              = var.tags
 }
 
 resource "aws_cloudwatch_log_group" "waf_block" {
   name              = "/aws/lambda/${aws_lambda_function.waf_block.function_name}"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
   tags              = var.tags
 }

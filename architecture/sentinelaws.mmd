@@ -4,17 +4,18 @@ flowchart TB
   end
 
   subgraph AWS["AWS account / Region"]
-    R53[Route 53 - optional]
+    R53[DNS / Route 53]
+    ACM[ACM certificate]
     WAF[AWS WAF]
 
     subgraph VPC["VPC across two Availability Zones"]
       subgraph Public[Public subnets]
-        ALB[Application Load Balancer]
-        NAT[NAT Gateway]
+        ALB[HTTPS Application Load Balancer]
+        NAT[NAT Gateway per profile]
       end
 
       subgraph App[Private application subnets]
-        ASG[EC2 Auto Scaling Group]
+        ASG[RDS-backed Python API]
       end
 
       subgraph Data[Isolated database subnets]
@@ -29,16 +30,20 @@ flowchart TB
     LQ[Quarantine Lambda]
     LW[WAF IP block Lambda]
     DDB[(Incident ledger)]
+    DLQ[(Encrypted DLQs)]
     CT[CloudTrail]
+    CW[CloudWatch Logs]
     S3[(Encrypted audit logs)]
   end
 
   U --> R53 --> WAF --> ALB --> ASG --> RDS
+  ACM --> ALB
   ASG --> NAT
   GD --> SH
   GD --> EB
   EB --> LQ --> DDB
   EB --> LW --> WAF
+  EB --> DLQ
   CFG --> S3
   CT --> S3
-
+  CT --> CW

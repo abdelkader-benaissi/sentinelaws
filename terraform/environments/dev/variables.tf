@@ -15,6 +15,12 @@ variable "availability_zones" {
   }
 }
 
+variable "vpc_cidr" {
+  description = "CIDR assigned to the SentinelAWS VPC."
+  type        = string
+  default     = "10.20.0.0/16"
+}
+
 variable "owner" {
   description = "Owner tag for attribution and cost reporting."
   type        = string
@@ -28,15 +34,36 @@ variable "alert_email" {
   sensitive   = true
 }
 
-variable "database_multi_az" {
-  description = "Enable Multi-AZ RDS. False is cheaper for a short-lived lab."
-  type        = bool
-  default     = false
+variable "deployment_profile" {
+  description = "lab uses lower-cost single-instance/single-NAT defaults; ha enables multi-AZ capacity and deletion protection."
+  type        = string
+  default     = "lab"
+
+  validation {
+    condition     = contains(["lab", "ha"], var.deployment_profile)
+    error_message = "deployment_profile must be either lab or ha."
+  }
 }
 
-variable "database_deletion_protection" {
-  description = "Protect RDS from deletion. Keep false for a disposable lab."
-  type        = bool
-  default     = false
+variable "certificate_arn" {
+  description = "Validated ACM certificate ARN for application_domain."
+  type        = string
 }
 
+variable "application_domain" {
+  description = "DNS name covered by certificate_arn."
+  type        = string
+}
+
+variable "route53_zone_id" {
+  description = "Optional Route 53 hosted zone ID. Leave null when DNS is managed elsewhere."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch and access-log retention for the lab."
+  type        = number
+  default     = 30
+}

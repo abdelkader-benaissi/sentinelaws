@@ -28,7 +28,12 @@ data "aws_iam_policy_document" "kms" {
       identifiers = [
         "cloudtrail.amazonaws.com",
         "config.amazonaws.com",
-        "logs.${data.aws_region.current.name}.amazonaws.com"
+        "logs.${data.aws_region.current.name}.amazonaws.com",
+        "sns.amazonaws.com",
+        "sqs.amazonaws.com",
+        "events.amazonaws.com",
+        "rds.amazonaws.com",
+        "secretsmanager.amazonaws.com"
       ]
     }
     condition {
@@ -54,7 +59,7 @@ resource "aws_kms_alias" "this" {
 
 resource "aws_s3_bucket" "audit" {
   bucket_prefix = "${var.name}-audit-"
-  force_destroy = true
+  force_destroy = var.force_destroy_audit_bucket
   tags          = merge(var.tags, { DataClassification = "audit" })
 }
 
@@ -95,6 +100,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "audit" {
     status = "Enabled"
     filter {}
     noncurrent_version_expiration { noncurrent_days = 30 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
 
   depends_on = [aws_s3_bucket_versioning.audit]
@@ -192,6 +198,52 @@ resource "aws_s3_bucket_policy" "audit" {
   policy = data.aws_iam_policy_document.audit_bucket.json
 }
 
+resource "aws_s3_bucket_notification" "audit" {
+  bucket      = aws_s3_bucket.audit.id
+  eventbridge = true
+}
+
+resource "aws_cloudwatch_log_group" "cloudtrail" {
+  name              = "/aws/cloudtrail/${var.name}"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = aws_kms_key.this.arn
+  tags              = var.tags
+}
+
+data "aws_iam_policy_document" "cloudtrail_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "cloudtrail" {
+  name               = "${var.name}-cloudtrail-logs"
+  assume_role_policy = data.aws_iam_policy_document.cloudtrail_assume.json
+  tags               = var.tags
+}
+
+data "aws_iam_policy_document" "cloudtrail_logs" {
+  statement {
+    actions   = ["logs:CreateLogStream"]
+    resources = ["${aws_cloudwatch_log_group.cloudtrail.arn}:log-stream:*"]
+  }
+
+  statement {
+    actions   = ["logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.cloudtrail.arn}:log-stream:*:*"]
+  }
+}
+
+resource "aws_iam_role_policy" "cloudtrail_logs" {
+  name   = "write-cloudtrail-logs"
+  role   = aws_iam_role.cloudtrail.id
+  policy = data.aws_iam_policy_document.cloudtrail_logs.json
+}
+
 resource "aws_cloudtrail" "this" {
   name                          = var.name
   s3_bucket_name                = aws_s3_bucket.audit.id
@@ -199,8 +251,11 @@ resource "aws_cloudtrail" "this" {
   is_multi_region_trail         = true
   enable_log_file_validation    = true
   kms_key_id                    = aws_kms_key.this.arn
+  cloud_watch_logs_group_arn    = "${aws_cloudwatch_log_group.cloudtrail.arn}:*"
+  cloud_watch_logs_role_arn     = aws_iam_role.cloudtrail.arn
+  sns_topic_name                = split(":", var.alert_topic_arn)[5]
 
-  depends_on = [aws_s3_bucket_policy.audit]
+  depends_on = [aws_s3_bucket_policy.audit, aws_iam_role_policy.cloudtrail_logs]
   tags       = var.tags
 }
 
@@ -274,4 +329,3 @@ resource "aws_config_config_rule" "managed" {
   depends_on = [aws_config_configuration_recorder_status.this]
   tags       = var.tags
 }
-

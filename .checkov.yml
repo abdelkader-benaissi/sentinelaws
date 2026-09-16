@@ -1,0 +1,28 @@
+# Accepted lab deviations. Each skipped policy is either inapplicable to this
+# architecture or intentionally traded against cost for the disposable lab
+# profile. The HA profile enables Multi-AZ and deletion protection separately.
+compact: true
+quiet: true
+skip-check:
+  # Port 80 exists only for an ALB HTTP-to-HTTPS redirect.
+  - CKV_AWS_260
+  # One-year CloudWatch retention is excessive for the short-lived lab profile.
+  - CKV_AWS_338
+  # Code signing requires a separate signing/release pipeline outside this lab.
+  - CKV_AWS_272
+  # The responders call AWS APIs only; VPC attachment adds no trust boundary.
+  - CKV_AWS_117
+  # KMS key policies require resource "*" because a key policy applies to itself.
+  - CKV_AWS_109
+  - CKV_AWS_111
+  - CKV_AWS_356
+  # Audit/access-log buckets are terminal log sinks; logging them is recursive.
+  - CKV_AWS_18
+  # This project is a single-account lab, not a GuardDuty organization admin.
+  - CKV2_AWS_3
+  # ALB access logging supports SSE-S3 for its destination bucket.
+  - CKV_AWS_145
+  # Cross-region S3 replication is a production DR control with ongoing cost.
+  - CKV_AWS_144
+  # The app SG attachment crosses a Terraform module boundary (scanner limitation).
+  - CKV2_AWS_5

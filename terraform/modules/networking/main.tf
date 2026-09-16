@@ -11,6 +11,7 @@ locals {
     (var.availability_zones[0]) = cidrsubnet(var.vpc_cidr, 8, 20)
     (var.availability_zones[1]) = cidrsubnet(var.vpc_cidr, 8, 21)
   }
+  nat_availability_zones = var.nat_gateway_per_az ? toset(var.availability_zones) : toset([var.availability_zones[0]])
 }
 
 resource "aws_vpc" "this" {
@@ -19,6 +20,11 @@ resource "aws_vpc" "this" {
   enable_dns_hostnames = true
 
   tags = merge(var.tags, { Name = "${var.name}-vpc" })
+}
+
+resource "aws_default_security_group" "this" {
+  vpc_id = aws_vpc.this.id
+  tags   = merge(var.tags, { Name = "${var.name}-default-deny" })
 }
 
 resource "aws_internet_gateway" "this" {
@@ -67,16 +73,20 @@ resource "aws_subnet" "db" {
 }
 
 resource "aws_eip" "nat" {
+  for_each = local.nat_availability_zones
+
   domain = "vpc"
-  tags   = merge(var.tags, { Name = "${var.name}-nat-eip" })
+  tags   = merge(var.tags, { Name = "${var.name}-nat-eip-${each.key}" })
 
   depends_on = [aws_internet_gateway.this]
 }
 
 resource "aws_nat_gateway" "this" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = values(aws_subnet.public)[0].id
-  tags          = merge(var.tags, { Name = "${var.name}-nat" })
+  for_each = local.nat_availability_zones
+
+  allocation_id = aws_eip.nat[each.key].id
+  subnet_id     = aws_subnet.public[each.key].id
+  tags          = merge(var.tags, { Name = "${var.name}-nat-${each.key}" })
 
   depends_on = [aws_internet_gateway.this]
 }
@@ -98,19 +108,21 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_route_table" "app" {
+  for_each = aws_subnet.app
+
   vpc_id = aws_vpc.this.id
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this.id
+    nat_gateway_id = aws_nat_gateway.this[var.nat_gateway_per_az ? each.key : var.availability_zones[0]].id
   }
-  tags = merge(var.tags, { Name = "${var.name}-app-rt" })
+  tags = merge(var.tags, { Name = "${var.name}-app-rt-${each.key}" })
 }
 
 resource "aws_route_table_association" "app" {
   for_each = aws_subnet.app
 
   subnet_id      = each.value.id
-  route_table_id = aws_route_table.app.id
+  route_table_id = aws_route_table.app[each.key].id
 }
 
 resource "aws_route_table" "db" {
@@ -125,16 +137,10 @@ resource "aws_route_table_association" "db" {
   route_table_id = aws_route_table.db.id
 }
 
-resource "aws_flow_log" "vpc" {
-  iam_role_arn    = aws_iam_role.flow_logs.arn
-  log_destination = aws_cloudwatch_log_group.flow_logs.arn
-  traffic_type    = "ALL"
-  vpc_id          = aws_vpc.this.id
-}
-
 resource "aws_cloudwatch_log_group" "flow_logs" {
   name              = "/aws/vpc/${var.name}/flow-logs"
-  retention_in_days = 7
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_arn
   tags              = var.tags
 }
 
@@ -160,7 +166,7 @@ data "aws_iam_policy_document" "flow_logs" {
       "logs:CreateLogStream",
       "logs:PutLogEvents",
       "logs:DescribeLogGroups",
-      "logs:DescribeLogStreams"
+      "logs:DescribeLogStreams",
     ]
     resources = ["${aws_cloudwatch_log_group.flow_logs.arn}:*"]
   }
@@ -172,3 +178,9 @@ resource "aws_iam_role_policy" "flow_logs" {
   policy = data.aws_iam_policy_document.flow_logs.json
 }
 
+resource "aws_flow_log" "vpc" {
+  iam_role_arn    = aws_iam_role.flow_logs.arn
+  log_destination = aws_cloudwatch_log_group.flow_logs.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.this.id
+}
