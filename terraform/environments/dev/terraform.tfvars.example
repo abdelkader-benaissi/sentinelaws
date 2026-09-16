@@ -1,0 +1,11 @@
+aws_region        = "us-east-1"
+availability_zones = ["us-east-1a", "us-east-1b"]
+owner             = "abdelkader-benaissi"
+
+# Set to an address you control, or leave null to skip email subscription.
+alert_email = null
+
+# Cost-aware development defaults. Enable only during final HA validation.
+database_multi_az           = false
+database_deletion_protection = false
+

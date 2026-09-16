@@ -1,0 +1,44 @@
+flowchart TB
+  subgraph Internet
+    U[User]
+  end
+
+  subgraph AWS["AWS account / Region"]
+    R53[Route 53 - optional]
+    WAF[AWS WAF]
+
+    subgraph VPC["VPC across two Availability Zones"]
+      subgraph Public[Public subnets]
+        ALB[Application Load Balancer]
+        NAT[NAT Gateway]
+      end
+
+      subgraph App[Private application subnets]
+        ASG[EC2 Auto Scaling Group]
+      end
+
+      subgraph Data[Isolated database subnets]
+        RDS[(Encrypted PostgreSQL RDS)]
+      end
+    end
+
+    GD[GuardDuty]
+    SH[Security Hub]
+    CFG[AWS Config]
+    EB[EventBridge]
+    LQ[Quarantine Lambda]
+    LW[WAF IP block Lambda]
+    DDB[(Incident ledger)]
+    CT[CloudTrail]
+    S3[(Encrypted audit logs)]
+  end
+
+  U --> R53 --> WAF --> ALB --> ASG --> RDS
+  ASG --> NAT
+  GD --> SH
+  GD --> EB
+  EB --> LQ --> DDB
+  EB --> LW --> WAF
+  CFG --> S3
+  CT --> S3
+
