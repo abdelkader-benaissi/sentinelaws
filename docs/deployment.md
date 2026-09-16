@@ -3,12 +3,14 @@
 ## Prerequisites
 
 - Dedicated AWS sandbox account
-- Terraform 1.8 or later
+- Terraform 1.10 or later
 - AWS CLI v2 with short-lived credentials
 - Permissions to create VPC, EC2, ELB, Auto Scaling, RDS, KMS, S3,
   CloudTrail, Config, GuardDuty, Security Hub, Lambda, EventBridge, DynamoDB,
   SNS, WAF, IAM roles, and service-linked roles
 - An AWS Budget created before deployment
+- A validated ACM certificate in the deployment Region
+- A DNS name covered by the certificate; optionally, a Route 53 hosted zone
 
 Do not use long-lived IAM user keys in GitHub Actions. A later phase will add
 GitHub OIDC with a narrowly scoped deployment role.
@@ -36,6 +38,7 @@ group rules, RDS settings, and all recurring-cost resources before applying.
 terraform apply tfplan
 terraform output
 curl "$(terraform output -raw application_url)/health"
+curl "$(terraform output -raw application_url)/ready"
 ```
 
 Expected response:
@@ -43,6 +46,10 @@ Expected response:
 ```json
 {"status": "healthy"}
 ```
+
+`/ready` must return `status=ready` and `database.status=connected`. This proves
+the private application tier retrieved the managed RDS secret and completed a
+TLS-protected PostgreSQL query.
 
 ## Verification
 
@@ -59,8 +66,10 @@ aws guardduty list-detectors
 aws securityhub describe-hub
 ```
 
-The EC2 instance must have no public IP, RDS must report `Public=false` and
-`Encrypted=true`, and no security group should allow inbound TCP/22.
+The EC2 instances must have no public IP, RDS must report `Public=false` and
+`Encrypted=true`, and no security group should allow inbound TCP/22. For final
+availability evidence, change `deployment_profile` to `ha`, review the cost
+increase in the saved plan, and verify two healthy targets across both AZs.
 
 ## Teardown
 
@@ -75,4 +84,3 @@ terraform apply destroy.tfplan
 Verify manually that no project NAT Gateway, Elastic IP, ALB, RDS instance,
 snapshot, or log group remains. The development configuration intentionally
 allows destruction; it is not a production retention design.
-

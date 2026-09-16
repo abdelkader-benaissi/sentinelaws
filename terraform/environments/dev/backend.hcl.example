@@ -1,8 +1,7 @@
-# Create this bucket and DynamoDB lock table separately before migrating state.
+# Create this versioned, encrypted bucket separately before migrating state.
 # Never commit real bucket or account identifiers.
 bucket         = "replace-with-terraform-state-bucket"
 key            = "sentinelaws/dev/terraform.tfstate"
 region         = "us-east-1"
 encrypt        = true
-dynamodb_table = "replace-with-terraform-lock-table"
-
+use_lockfile   = true

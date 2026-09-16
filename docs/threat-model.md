@@ -13,11 +13,11 @@
 
 | Boundary | Allowed path | Primary controls |
 |---|---|---|
-| Internet to edge | TCP/80 initially; HTTPS after ACM integration | WAF, Shield Standard, ALB security group |
+| Internet to edge | HTTPS/443; TCP/80 redirects only | ACM TLS policy, WAF, Shield Standard, ALB security group |
 | ALB to application | TCP/8080 | Source-security-group rule only |
-| Application to database | TCP/5432 | Source-security-group rule only, private DNS |
+| Application to database | TLS over TCP/5432 | Source-SG rule, private DNS, RDS `force_ssl`, managed secret |
 | Application to AWS APIs | HTTPS egress | IAM role, NAT, CloudTrail |
-| Detection to remediation | EventBridge invocation | Resource policy, least-privilege Lambda role |
+| Detection to remediation | EventBridge invocation | Resource policy, idempotency, encrypted DLQ, bounded concurrency |
 | Operators to instances | SSM control/data channels | IAM, Session Manager, CloudTrail; no SSH |
 
 ## Priority abuse cases
@@ -36,6 +36,6 @@
 1. EC2 quarantine requires `SentinelAWSManaged=true`.
 2. Quarantine never terminates an instance or detaches storage.
 3. IP blocking rejects non-public addresses.
-4. Every action writes an incident ledger entry.
-5. Automation roles cannot change IAM users, roles, policies, KMS keys, or logs.
-
+4. Every action writes an expiring ledger entry; duplicate IDs do not mutate resources twice.
+5. Quarantine replaces security groups on every attached network interface.
+6. Automation roles cannot change IAM users, roles, policies, KMS keys, or logs.

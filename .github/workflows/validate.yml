@@ -15,9 +15,9 @@ jobs:
       run:
         working-directory: terraform/environments/dev
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.13.5"
 
@@ -33,14 +33,14 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
       - name: Compile Lambda functions
-        run: python -m compileall -q lambda tests
+        run: python -m compileall -q app lambda tests
 
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
@@ -51,7 +51,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Scan Terraform
         uses: bridgecrewio/checkov-action@v12
@@ -60,10 +60,10 @@ jobs:
           framework: terraform
           output_format: cli,sarif
           output_file_path: console,results.sarif
-          soft_fail: true
+          soft_fail: false
 
       - name: Upload findings
-        if: ${{ always() && github.event.repository.private == false }}
-        uses: github/codeql-action/upload-sarif@v3
+        if: ${{ always() && github.event_name == 'push' }}
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif

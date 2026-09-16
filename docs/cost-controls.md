@@ -15,12 +15,13 @@
 - One NAT Gateway rather than one per Availability Zone
 - One `t3.micro` application instance
 - `db.t4g.micro` RDS instance with Multi-AZ disabled
-- Seven-day CloudWatch log retention
+- Thirty-day CloudWatch and ALB access-log retention
 - Thirty-day noncurrent S3 version expiration
-- No Route 53 domain, ACM certificate, CloudFront, or paid Shield tier
+- An externally supplied ACM certificate; Route 53 record creation is optional
 
 These choices trade availability for cost in the development environment. The
-production design uses one NAT Gateway per Availability Zone and Multi-AZ RDS.
+`deployment_profile = "ha"` uses one NAT Gateway per Availability Zone,
+two application instances, Multi-AZ RDS, and deletion protection.
 
 ## Mandatory controls
 
@@ -30,4 +31,3 @@ production design uses one NAT Gateway per Availability Zone and Multi-AZ RDS.
 4. Run the lab for a defined evidence window.
 5. Destroy the environment and verify that no NAT Gateway, ALB, RDS instance,
    Elastic IP, log group, or snapshot remains unintentionally.
-
