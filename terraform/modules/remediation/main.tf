@@ -199,15 +199,15 @@ resource "aws_iam_role_policy" "waf_block" {
 #checkov:skip=CKV_AWS_117:The function calls regional AWS APIs only and does not need VPC access.
 #checkov:skip=CKV_AWS_272:Code signing is documented as a production control and omitted from this educational lab.
 resource "aws_lambda_function" "quarantine" {
-  function_name    = "${var.name}-quarantine-instance"
-  role             = aws_iam_role.quarantine.arn
-  runtime          = "python3.13"
-  handler          = "handler.lambda_handler"
-  filename         = data.archive_file.quarantine.output_path
-  source_code_hash = data.archive_file.quarantine.output_base64sha256
-  timeout          = 30
-  memory_size      = 128
-  kms_key_arn      = var.kms_key_arn
+  function_name                  = "${var.name}-quarantine-instance"
+  role                           = aws_iam_role.quarantine.arn
+  runtime                        = "python3.13"
+  handler                        = "handler.lambda_handler"
+  filename                       = data.archive_file.quarantine.output_path
+  source_code_hash               = data.archive_file.quarantine.output_base64sha256
+  timeout                        = 30
+  memory_size                    = 128
+  kms_key_arn                    = var.kms_key_arn
   reserved_concurrent_executions = 5
 
   tracing_config { mode = "Active" }
@@ -228,15 +228,15 @@ resource "aws_lambda_function" "quarantine" {
 #checkov:skip=CKV_AWS_117:The function calls regional AWS APIs only and does not need VPC access.
 #checkov:skip=CKV_AWS_272:Code signing is documented as a production control and omitted from this educational lab.
 resource "aws_lambda_function" "waf_block" {
-  function_name    = "${var.name}-waf-ip-block"
-  role             = aws_iam_role.waf_block.arn
-  runtime          = "python3.13"
-  handler          = "handler.lambda_handler"
-  filename         = data.archive_file.waf_block.output_path
-  source_code_hash = data.archive_file.waf_block.output_base64sha256
-  timeout          = 30
-  memory_size      = 128
-  kms_key_arn      = var.kms_key_arn
+  function_name                  = "${var.name}-waf-ip-block"
+  role                           = aws_iam_role.waf_block.arn
+  runtime                        = "python3.13"
+  handler                        = "handler.lambda_handler"
+  filename                       = data.archive_file.waf_block.output_path
+  source_code_hash               = data.archive_file.waf_block.output_base64sha256
+  timeout                        = 30
+  memory_size                    = 128
+  kms_key_arn                    = var.kms_key_arn
   reserved_concurrent_executions = 5
 
   tracing_config { mode = "Active" }

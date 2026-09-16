@@ -122,7 +122,7 @@ resource "aws_db_instance" "this" {
   publicly_accessible    = false
   multi_az               = var.multi_az
 
-  iam_database_authentication_enabled = true
+  iam_database_authentication_enabled   = true
   monitoring_interval                   = 60
   monitoring_role_arn                   = aws_iam_role.monitoring.arn
   performance_insights_enabled          = true

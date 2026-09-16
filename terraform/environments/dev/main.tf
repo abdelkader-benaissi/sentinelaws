@@ -31,13 +31,13 @@ module "security" {
 module "networking" {
   source = "../../modules/networking"
 
-  name                 = local.name
-  vpc_cidr             = var.vpc_cidr
-  availability_zones   = var.availability_zones
-  nat_gateway_per_az   = local.high_availability
-  kms_key_arn          = module.security.kms_key_arn
-  log_retention_days   = var.log_retention_days
-  tags                 = local.common_tags
+  name               = local.name
+  vpc_cidr           = var.vpc_cidr
+  availability_zones = var.availability_zones
+  nat_gateway_per_az = local.high_availability
+  kms_key_arn        = module.security.kms_key_arn
+  log_retention_days = var.log_retention_days
+  tags               = local.common_tags
 }
 
 resource "aws_security_group" "application" {

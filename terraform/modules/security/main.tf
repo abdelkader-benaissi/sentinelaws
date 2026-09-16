@@ -234,7 +234,7 @@ data "aws_iam_policy_document" "cloudtrail_logs" {
 
   statement {
     actions   = ["logs:PutLogEvents"]
-    resources = ["${aws_cloudwatch_log_group.cloudtrail.arn}:log-stream:*:*" ]
+    resources = ["${aws_cloudwatch_log_group.cloudtrail.arn}:log-stream:*:*"]
   }
 }
 
