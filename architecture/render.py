@@ -365,11 +365,13 @@ def main():
 
     # Optional PNG export for README embedding (renders everywhere,
     # including GitHub raw views whose CSP blocks data-URI <image>s).
+    # 4x scale (6880px wide): icons render at their native 256-300px
+    # resolution and text stays crisp when zoomed on high-DPI screens.
     try:
         import cairosvg
 
         png = os.path.splitext(OUT)[0] + ".png"
-        cairosvg.svg2png(url=OUT, write_to=png, output_width=3440)
+        cairosvg.svg2png(url=OUT, write_to=png, output_width=6880)
         print(f"wrote {png} ({os.path.getsize(png)} bytes)")
     except ImportError:
         print("cairosvg not installed; skipping PNG export "
