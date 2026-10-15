@@ -88,19 +88,23 @@ class Svg:
             f'font-weight="600" fill="#334155">{label}</text>'
         )
 
-    def node(self, x, y, size, icon, label, sub=None):
+    def node(self, x, y, size, icon, label, sub=None, label_anchor="middle",
+             label_dx=0):
         cx = x + size / 2
+        uri = data_uri(os.path.join(ICON_ROOT, ICONS[icon]))
         self.add(
             f'<image x="{x}" y="{y}" width="{size}" height="{size}" '
-            f'href="{data_uri(os.path.join(ICON_ROOT, ICONS[icon]))}"/>'
+            f'href="{uri}" xlink:href="{uri}"/>'
         )
+        lx = cx + label_dx
+        anchor = label_anchor
         self.add(
-            f'<text x="{cx}" y="{y + size + 16}" text-anchor="middle" '
+            f'<text x="{lx}" y="{y + size + 16}" text-anchor="{anchor}" '
             f'font-size="12.5" font-weight="600" fill="#1e293b">{label}</text>'
         )
         if sub:
             self.add(
-                f'<text x="{cx}" y="{y + size + 32}" text-anchor="middle" '
+                f'<text x="{lx}" y="{y + size + 32}" text-anchor="{anchor}" '
                 f'font-size="11" fill="#64748b">{sub}</text>'
             )
         return cx, y + size / 2
@@ -206,17 +210,15 @@ def main():
     s.node(552, 452, 56, "ec2", "", None)
     s.node(832, 452, 56, "ec2", "", None)
     s.node(942, 452, 56, "ec2", "", None)
-    s.add('<text x="555" y="552" text-anchor="middle" font-size="12" '
+    s.add('<text x="470" y="552" text-anchor="middle" font-size="12" '
           'font-weight="600" fill="#1e293b">EC2 Auto Scaling Group</text>')
-    s.add('<text x="945" y="552" text-anchor="middle" font-size="12" '
+    s.add('<text x="880" y="552" text-anchor="middle" font-size="12" '
           'font-weight="600" fill="#1e293b">EC2 Auto Scaling Group</text>')
 
     # Isolated DB subnets: RDS Multi-AZ (terraform: database module,
     # aws_db_instance multi_az=true in ha profile, no internet route)
-    s.box(385, 590, 340, 160, "Isolated database subnets (no internet route)",
-          "#f1f5f9", "#cbd5e1", 12)
-    s.box(775, 590, 340, 160, "Isolated database subnets (no internet route)",
-          "#f1f5f9", "#cbd5e1", 12)
+    s.box(385, 590, 340, 160, "Isolated DB subnets", "#f1f5f9", "#cbd5e1", 12)
+    s.box(775, 590, 340, 160, "Isolated DB subnets", "#f1f5f9", "#cbd5e1", 12)
     s.node(493, 622, 64, "rds", "RDS PostgreSQL", "primary \u00b7 Multi-AZ")
     s.node(883, 622, 64, "rds", "RDS PostgreSQL", "standby")
 
@@ -244,7 +246,8 @@ def main():
 
     # ============ request path (blue) ============
     s.edge([(160, 125), (196, 125)], BLUE)
-    s.edge([(230, 157), (230, 236)], BLUE)
+    # Route 53 -> WAF jogs right of the node labels (x=300 gutter)
+    s.edge([(264, 140), (300, 140), (300, 262), (266, 262)], BLUE)
     # WAF -> IGW -> ALB (inbound). The x=320 vertical stays clear of the
     # IGW label below the icon.
     s.edge([(264, 270), (320, 270), (320, 124), (388, 124)], BLUE)
@@ -252,15 +255,20 @@ def main():
            label_at=(600, 114))
     # ACM -> ALB (TLS): routed above the public subnet bands
     s.edge([(262, 262), (320, 262), (320, 208), (700, 208), (700, 260)],
-           BLUE, "TLS certificate", label_at=(510, 198))
-    # ALB -> EC2 targets (private subnets)
-    s.edge([(755, 336), (755, 440)], BLUE)
-    s.edge([(500, 440), (1000, 440)], BLUE)
+           BLUE, "TLS certificate", label_at=(610, 198))
+    # ALB -> EC2 targets (private subnets). The trunk splits around the ALB
+    # labels: two verticals at x=650/860, clear of the centered label strip.
+    s.edge([(719, 334), (650, 334), (650, 445)], BLUE)
+    s.edge([(791, 334), (860, 334), (860, 445)], BLUE)
+    s.edge([(500, 445), (1000, 445)], BLUE)
     for x in (470, 580, 860, 970):
-        s.edge([(x + 28, 440), (x + 28, 450)], BLUE)
-    # EC2 -> RDS primary (writer endpoint)
-    s.edge([(553, 510), (553, 620)], BLUE)
-    s.edge([(943, 530), (943, 600), (560, 600), (560, 620)], BLUE)
+        s.edge([(x + 28, 445), (x + 28, 450)], BLUE)
+    # EC2 -> RDS primary (writer endpoint). Stubs rise from the right-hand
+    # instance of each AZ, join at y=578 (the gap between the subnet bands),
+    # then drop into the primary's top edge.
+    s.edge([(608, 510), (620, 510), (620, 578)], BLUE)
+    s.edge([(998, 510), (1000, 510), (1000, 578)], BLUE)
+    s.edge([(1000, 578), (550, 578), (550, 620)], BLUE)
     # RDS replication (gray dashed)
     s.edge([(589, 654), (881, 654)], GRAY, "synchronous replication",
            label_at=(735, 644), dashed=True)
@@ -270,22 +278,25 @@ def main():
     s.edge([(970, 450), (970, 400), (1040, 400), (1040, 344)], BLUE)
     s.edge([(470, 268), (525, 268), (525, 124), (442, 124)], BLUE,
            "egress via NAT", label_at=(525, 190), rotate_label=True)
-    s.edge([(1040, 270), (1040, 124), (442, 124)], BLUE)
+    # AZ-B egress runs in the x=1110 gutter, clear of the NAT-B labels
+    s.edge([(1040, 268), (1110, 268), (1110, 124), (760, 124)], BLUE)
 
     # ============ detection inputs (orange) ============
-    # GuardDuty natively ingests CloudTrail mgmt events, VPC Flow Logs, DNS logs
-    s.edge([(1354, 164), (1354, 400), (1396, 400), (1396, 438)], ORANGE,
-           "management events", label_at=(1364, 280), rotate_label=True)
+    # GuardDuty natively ingests CloudTrail mgmt events, VPC Flow Logs, DNS logs.
+    # The CloudTrail vertical jogs to x=1385, clear of the Config labels.
+    s.edge([(1360, 164), (1385, 164), (1385, 400), (1400, 400), (1400, 438)],
+           ORANGE, "management events", label_at=(1385, 280),
+           rotate_label=True)
     s.edge([(1392, 145), (1486, 178)], ORANGE, "audit trail",
            label_at=(1440, 148))
     s.edge([(1354, 132), (1455, 132), (1455, 332), (1486, 332)], ORANGE,
            "log delivery", label_at=(1465, 230), rotate_label=True)
     s.edge([(1324, 315), (1430, 315), (1430, 205), (1486, 205)], ORANGE,
-           "configuration history", label_at=(1395, 331))
+           "configuration history", label_at=(1395, 335))
     s.edge([(783, 886), (1205, 886), (1205, 476), (1396, 476)], ORANGE,
            "VPC Flow Logs", label_at=(1215, 680), rotate_label=True)
-    s.edge([(783, 900), (1455, 900), (1455, 364), (1486, 364)], ORANGE,
-           "flow log delivery", label_at=(1465, 640), rotate_label=True)
+    s.edge([(783, 865), (1420, 865), (1420, 364), (1486, 364)], ORANGE,
+           "flow log delivery", label_at=(1420, 600), rotate_label=True)
     s.edge([(1320, 428), (1396, 470)], ORANGE, "DNS query logs",
            label_at=(1358, 436))
 
@@ -296,7 +307,9 @@ def main():
            "findings (severity \u2265 7)", label_at=(1548, 550),
            rotate_label=True)
     s.edge([(1506, 650), (1320, 650), (1320, 738)], RED)
-    s.edge([(1538, 650), (1538, 738)], RED)
+    # EventBridge -> WAF-block Lambda: routed around the right side so no
+    # edge crosses the EventBridge labels.
+    s.edge([(1568, 640), (1625, 640), (1625, 770), (1570, 770)], RED)
     # Quarantine Lambda acts on the EC2 instance: swap its security group
     # to the quarantine SG (terraform: remediation module,
     # ec2:ModifyNetworkInterfaceAttribute).
@@ -307,17 +320,18 @@ def main():
     # incident blocklist referenced by the ALB's Web ACL). Routed around the
     # Lambda's own label via the icon's right edge.
     s.edge([(1570, 775), (1605, 775), (1605, 908), (1566, 908)], RED,
-           "wafv2:UpdateIPSet", label_at=(1615, 845), rotate_label=True)
+           "wafv2:UpdateIPSet", label_at=(1618, 845), rotate_label=True)
     s.edge([(1506, 908), (1210, 908), (1210, 1020), (345, 1020), (345, 302),
             (264, 302)], RED, "blocklist enforced by Web ACL",
            label_at=(700, 1010))
     # Incident ledger + alerts (routed below the Lambdas' own labels)
     s.edge([(1270, 845), (1235, 845), (1235, 908), (1256, 908)], RED)
     s.edge([(1506, 790), (1420, 790), (1420, 908), (1316, 908)], RED,
-           "incident record", label_at=(1463, 782))
-    s.edge([(1316, 936), (1316, 1036), (1326, 1036)], RED)
-    s.edge([(1600, 802), (1620, 802), (1620, 985), (1354, 985), (1354, 1008)],
-           RED, "alert", label_at=(1630, 900), rotate_label=True)
+           "incident record", label_at=(1412, 850), rotate_label=True)
+    s.edge([(1320, 936), (1350, 936), (1350, 1036), (1330, 1036)], RED)
+    # WAF Lambda -> SNS runs down the left side (x=1450), clear of labels
+    s.edge([(1508, 770), (1450, 770), (1450, 985), (1354, 985), (1354, 1008)],
+           RED, "alert", label_at=(1450, 880), rotate_label=True)
     # Failed EventBridge deliveries -> DLQ (gray dashed)
     s.edge([(1568, 620), (1660, 620), (1660, 1036), (1524, 1036)], GRAY,
            "failed deliveries", label_at=(1670, 830), rotate_label=True,
@@ -342,11 +356,24 @@ def main():
           "Deployment profile: ha \u2014 NAT Gateway per AZ, RDS Multi-AZ "
           "(primary + standby).</text>")
     s.add(f'<text x="{lx}" y="{ly + 146}" font-size="12" fill="#64748b">'
-          "The lab profile uses a single NAT Gateway and single-AZ RDS.</text>")
+          "The lab profile uses a single NAT Gateway and single-AZ RDS. "
+          "DB subnets have no internet route.</text>")
 
     with open(OUT, "w") as f:
         f.write(s.render())
     print(f"wrote {OUT} ({os.path.getsize(OUT)} bytes)")
+
+    # Optional PNG export for README embedding (renders everywhere,
+    # including GitHub raw views whose CSP blocks data-URI <image>s).
+    try:
+        import cairosvg
+
+        png = os.path.splitext(OUT)[0] + ".png"
+        cairosvg.svg2png(url=OUT, write_to=png, output_width=3440)
+        print(f"wrote {png} ({os.path.getsize(png)} bytes)")
+    except ImportError:
+        print("cairosvg not installed; skipping PNG export "
+              "(pip install cairosvg to enable)")
 
 
 if __name__ == "__main__":
