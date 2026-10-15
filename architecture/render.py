@@ -120,12 +120,13 @@ class Svg:
         )
 
     def edge(self, points, color, label=None, label_at=None, dashed=False,
-             width=2, rotate_label=False):
+             width=2, rotate_label=False, arrow=True):
         pts = " ".join(f"{x},{y}" for x, y in points)
         dash = ' stroke-dasharray="7,5"' if dashed else ""
+        marker = f' marker-end="url(#arr-{color[1:]})"' if arrow else ""
         self.add(
             f'<polyline points="{pts}" fill="none" stroke="{color}" '
-            f'stroke-width="{width}"{dash} marker-end="url(#arr-{color[1:]})"/>'
+            f'stroke-width="{width}"{dash}{marker}/>'
         )
         if label:
             lx, ly = label_at or points[len(points) // 2]
@@ -251,16 +252,17 @@ def main():
     s.edge([(264, 270), (320, 270), (320, 124), (388, 124)], BLUE)
     s.edge([(440, 124), (755, 124), (755, 260)], BLUE, "inbound",
            label_at=(600, 114))
-    # ACM -> ALB (TLS): routed above the public subnet bands
-    s.edge([(262, 262), (320, 262), (320, 208), (700, 208), (700, 260)],
+    # ACM -> ALB (TLS): routed above the public subnet bands, arrow lands on
+    # the ALB icon's top edge
+    s.edge([(262, 262), (320, 262), (320, 208), (730, 208), (730, 260)],
            BLUE, "TLS certificate", label_at=(610, 198))
     # ALB -> EC2 targets (private subnets). The trunk splits around the ALB
     # labels: two verticals at x=650/860, clear of the centered label strip.
     s.edge([(719, 334), (650, 334), (650, 445)], BLUE)
     s.edge([(791, 334), (860, 334), (860, 445)], BLUE)
-    s.edge([(500, 445), (1000, 445)], BLUE)
+    s.edge([(500, 445), (1000, 445)], BLUE, arrow=False)
     for x in (470, 580, 860, 970):
-        s.edge([(x + 28, 445), (x + 28, 450)], BLUE)
+        s.edge([(x, 445), (x, 450)], BLUE)
     # EC2 -> RDS primary (writer endpoint). Stubs rise from the right-hand
     # instance of each AZ, join at y=578 (the gap between the subnet bands),
     # then drop into the primary's top edge.
@@ -299,12 +301,12 @@ def main():
            label_at=(1358, 436))
 
     # ============ automated response (red) ============
-    s.edge([(1430, 512), (1320, 512), (1320, 588)], RED, "findings",
-           label_at=(1330, 550), rotate_label=True)
+    s.edge([(1430, 512), (1318, 512), (1318, 588)], RED, "findings",
+           label_at=(1318, 550), rotate_label=True)
     s.edge([(1470, 512), (1538, 512), (1538, 588)], RED,
            "findings (severity \u2265 7)", label_at=(1548, 550),
            rotate_label=True)
-    s.edge([(1506, 650), (1320, 650), (1320, 738)], RED)
+    s.edge([(1506, 650), (1318, 650), (1318, 738)], RED)
     # EventBridge -> WAF-block Lambda: routed around the right side so no
     # edge crosses the EventBridge labels.
     s.edge([(1568, 640), (1625, 640), (1625, 770), (1570, 770)], RED)
