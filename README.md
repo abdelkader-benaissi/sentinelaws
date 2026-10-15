@@ -24,13 +24,14 @@ AWS Solutions Architect Associate graduation project catalogue.
 
 ## Architecture
 
-![SentinelAWS architecture diagram](architecture/sentinelaws.svg)
+![SentinelAWS architecture diagram](architecture/sentinelaws.png)
 
 The diagram uses the official AWS Architecture Icons and reflects the
 hardened (`ha`) deployment profile: NAT Gateway per AZ and Multi-AZ RDS
 (primary + standby). The text source is
 [`architecture/sentinelaws.mmd`](architecture/sentinelaws.mmd) (Mermaid);
-regenerate the SVG any time with `python3 architecture/render.py`
+the vector original is [`architecture/sentinelaws.svg`](architecture/sentinelaws.svg),
+regenerable any time with `python3 architecture/render.py`
 (requires `pip install diagrams`, no Graphviz needed).
 
 The detailed trust boundaries and data flows are in
