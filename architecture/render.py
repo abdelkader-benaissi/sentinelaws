@@ -168,10 +168,8 @@ def main():
     # ---- title ----
     s.add('<text x="30" y="42" font-size="22" font-weight="700" fill="#0f172a">'
           "SentinelAWS \u2014 Architecture (hardened / HA deployment profile)</text>")
-    s.add('<text x="30" y="64" font-size="12.5" fill="#64748b">'
-          "Official AWS Architecture Icons \u00b7 text source: "
-          "architecture/sentinelaws.mmd \u00b7 regenerate: "
-          "python3 architecture/render.py</text>")
+    # (No subtitle inside the image: the source/regeneration note lives in
+    # the README, and the line collided with the VPC box top edge.)
 
     # ---- left edge: internet ----
     s.text_box(30, 95, 130, 60, "Internet users")
