@@ -24,24 +24,16 @@ AWS Solutions Architect Associate graduation project catalogue.
 
 ## Architecture
 
-```mermaid
-flowchart TB
-  User[Internet user] --> WAF[AWS WAF]
-  WAF --> ALB[HTTPS Application Load Balancer]
-  ALB --> ASG[Private EC2 Auto Scaling Group]
-  ASG --> RDS[(Encrypted PostgreSQL RDS)]
+![SentinelAWS architecture diagram](architecture/sentinelaws.svg)
 
-  GuardDuty[GuardDuty findings] --> EventBridge[EventBridge]
-  GuardDuty --> SecurityHub[Security Hub]
-  EventBridge --> Quarantine[EC2 quarantine Lambda]
-  EventBridge --> BlockIP[WAF IP block Lambda]
-
-  CloudTrail[CloudTrail] --> Logs[(Encrypted audit S3)]
-  Config[AWS Config] --> Logs
-```
+The diagram uses the official AWS Architecture Icons and reflects the
+hardened (`ha`) deployment profile: NAT Gateway per AZ and Multi-AZ RDS
+(primary + standby). The text source is
+[`architecture/sentinelaws.mmd`](architecture/sentinelaws.mmd) (Mermaid);
+regenerate the SVG any time with `python3 architecture/render.py`
+(requires `pip install diagrams`, no Graphviz needed).
 
 The detailed trust boundaries and data flows are in
-[`architecture/sentinelaws.mmd`](architecture/sentinelaws.mmd) and
 [`docs/threat-model.md`](docs/threat-model.md).
 
 ## Repository layout
