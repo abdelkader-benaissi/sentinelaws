@@ -1,49 +1,92 @@
 flowchart TB
   subgraph Internet
-    U[User]
+    User[Internet user]
   end
 
-  subgraph AWS["AWS account / Region"]
-    R53[DNS / Route 53]
+  subgraph AWS["AWS account / Region - deployment profile: ha"]
+    R53[Route 53 DNS]
     ACM[ACM certificate]
-    WAF[AWS WAF]
+    WAF[AWS WAF Web ACL]
 
-    subgraph VPC["VPC across two Availability Zones"]
-      subgraph Public[Public subnets]
-        ALB[HTTPS Application Load Balancer]
-        NAT[NAT Gateway per profile]
+    subgraph VPC["VPC - DNS support and hostnames enabled"]
+      IGW[Internet Gateway]
+
+      subgraph AZA["Availability Zone A"]
+        subgraph PubA["Public subnets"]
+          ALB[HTTPS Application Load Balancer]
+          NATA[NAT Gateway]
+        end
+        subgraph AppA["Private application subnets"]
+          EC2A[EC2 instances - Auto Scaling Group]
+        end
+        subgraph DbA["Isolated database subnets"]
+          RDSPrimary[(RDS PostgreSQL - primary)]
+        end
       end
 
-      subgraph App[Private application subnets]
-        ASG[RDS-backed Python API]
+      subgraph AZB["Availability Zone B"]
+        subgraph PubB["Public subnets"]
+          NATB[NAT Gateway]
+        end
+        subgraph AppB["Private application subnets"]
+          EC2B[EC2 instances - Auto Scaling Group]
+        end
+        subgraph DbB["Isolated database subnets"]
+          RDSStandby[(RDS PostgreSQL - standby)]
+        end
       end
 
-      subgraph Data[Isolated database subnets]
-        RDS[(Encrypted PostgreSQL RDS)]
-      end
+      FlowLogs[VPC Flow Logs]
     end
+
+    CT[CloudTrail]
+    DNSLogs[DNS query logs - Route 53 Resolver]
+    CFG[AWS Config]
+    S3[(Encrypted audit S3 bucket)]
+    CW[CloudWatch Logs]
 
     GD[GuardDuty]
     SH[Security Hub]
-    CFG[AWS Config]
     EB[EventBridge]
     LQ[Quarantine Lambda]
     LW[WAF IP block Lambda]
-    DDB[(Incident ledger)]
-    DLQ[(Encrypted DLQs)]
-    CT[CloudTrail]
-    CW[CloudWatch Logs]
-    S3[(Encrypted audit logs)]
+    IPSet[WAF IP Set - incident blocklist]
+    DDB[(DynamoDB incident ledger)]
+    SNS[SNS alert topic]
+    DLQ[(Encrypted SQS DLQs)]
   end
 
-  U --> R53 --> WAF --> ALB --> ASG --> RDS
+  %% Request path
+  User --> R53 --> WAF --> IGW --> ALB
   ACM --> ALB
-  ASG --> NAT
-  GD --> SH
-  GD --> EB
-  EB --> LQ --> DDB
-  EB --> LW --> WAF
-  EB --> DLQ
-  CFG --> S3
+  ALB --> EC2A
+  ALB --> EC2B
+  EC2A --> RDSPrimary
+  EC2B --> RDSPrimary
+  RDSPrimary -. synchronous replication .-> RDSStandby
+  EC2A --> NATA --> IGW
+  EC2B --> NATB --> IGW
+
+  %% Detection inputs - GuardDuty ingests all three natively
+  CT --> GD
+  FlowLogs --> GD
+  DNSLogs --> GD
   CT --> S3
   CT --> CW
+  FlowLogs --> CW
+  CFG --> S3
+
+  %% Automated response
+  GD --> SH
+  GD --> EB
+  EB --> LQ
+  EB --> LW
+  LQ -- "swap instance security group to quarantine SG" --> EC2A
+  LQ -- "swap instance security group to quarantine SG" --> EC2B
+  LW -- "wafv2:UpdateIPSet" --> IPSet
+  IPSet --> WAF
+  LQ --> DDB
+  LW --> DDB
+  LQ --> SNS
+  LW --> SNS
+  EB -. failed deliveries .-> DLQ
