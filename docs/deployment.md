@@ -76,16 +76,20 @@ diagram.
 
 ## Architecture diagram
 
-The diagram is generated, not hand-edited. After any change to `terraform/`:
+The diagram is an editable draw.io file, not a hand-edited image. After any
+change to `terraform/`:
 
 ```bash
-python3 architecture/render.py          # SVG + PNG + Mermaid from one model
-python3 architecture/render.py --check  # what CI runs; fails on drift
+python3 architecture/build_drawio.py            # rewrite the .drawio
+python3 architecture/build_drawio.py --check     # what CI runs
+drawio --no-sandbox -x -f svg -o architecture/sentinelaws.svg architecture/sentinelaws.drawio
+drawio --no-sandbox -x -f png --width 3600 -o architecture/sentinelaws.png architecture/sentinelaws.drawio
 ```
 
-The official AWS Architecture Icons are vendored in `architecture/icons/`, so
-rendering needs no network access. Only the PNG export needs
-`pip install cairosvg`; the SVG and Mermaid views render without it.
+`build_drawio.py` fails rather than emit a diagram whose icons, labels,
+connectors or containers overlap, and the icons come from draw.io's built-in
+AWS4 shape library, so no assets are vendored. The file opens in draw.io /
+diagrams.net for manual editing.
 
 ## Teardown
 

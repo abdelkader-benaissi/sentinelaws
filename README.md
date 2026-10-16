@@ -23,32 +23,46 @@ AWS Solutions Architect Associate graduation project catalogue.
   snapshots its volumes before isolating it, so the evidence survives
 - Encrypted dead-letter queues, idempotency, bounded concurrency, and X-Ray tracing
 - SSM Session Manager access with no inbound SSH rule or bastion host
-- Architecture diagram generated from one model (SVG, PNG, Mermaid) with a CI
-  drift check, using the vendored official AWS Architecture Icons
+- Architecture diagram as an editable draw.io file using the official AWS icon
+  set, with a layout checker that refuses to emit an overlapping diagram and a
+  CI drift gate
 - Enforced Terraform validation, Checkov policy gate, and Python tests in GitHub Actions
 
 ## Architecture
 
 ![SentinelAWS architecture diagram](architecture/sentinelaws.png)
 
-The diagram uses the official AWS Architecture Icons and reflects the shipped
-`ha` deployment profile: NAT Gateway per AZ, Multi-AZ RDS (primary + standby),
-and the ALB in the public subnets across both AZs.
+The diagram is an editable draw.io file: [`architecture/sentinelaws.drawio`](architecture/sentinelaws.drawio),
+with [`sentinelaws.svg`](architecture/sentinelaws.svg) and
+[`sentinelaws.png`](architecture/sentinelaws.png) exported from it for reading
+and for this README. It uses the official AWS Architecture Icons through
+draw.io's built-in AWS4 shape library, so no icon assets are vendored.
 
-All three files are generated from a single model by
-[`architecture/render.py`](architecture/render.py) — `sentinelaws.svg` (vector
-original), `sentinelaws.png` (README image, exported at 4x), and
-`sentinelaws.mmd` (Mermaid text view of the same nodes and edges). The text
-view cannot drift from the picture because it is not written by hand:
+It reflects the shipped `ha` deployment profile: the ALB in the public subnets
+across both AZs, EC2 Auto Scaling instances in the private application subnets,
+RDS PostgreSQL Multi-AZ (primary + standby) in the isolated database subnets,
+one NAT Gateway per AZ, and the detection and response chain from GuardDuty
+through EventBridge to the two containment Lambdas.
+
+The layout is generated and checked, not hand-nudged:
 
 ```bash
-python3 architecture/render.py          # regenerate all three
-python3 architecture/render.py --check  # CI gate: fails when they are stale
+python3 architecture/build_drawio.py          # write the .drawio
+python3 architecture/build_drawio.py --check   # layout + drift gate (CI runs this)
 ```
 
-The AWS Architecture Icons are vendored in `architecture/icons/`, so rendering
-needs no network access and no third-party package. Only the PNG export needs
-`pip install cairosvg`.
+`build_drawio.py` refuses to emit a file whose icons, labels or containers
+overlap: it computes every bounding box and fails on a collision, including a
+connector that would run through an icon or a label. Re-export the
+images after any change:
+
+```bash
+drawio --no-sandbox -x -f svg -o architecture/sentinelaws.svg architecture/sentinelaws.drawio
+drawio --no-sandbox -x -f png --width 3600 -o architecture/sentinelaws.png architecture/sentinelaws.drawio
+```
+
+You can also open the file directly in [draw.io](https://app.diagrams.net) or the
+desktop app and use File → Export as.
 
 The detailed trust boundaries and data flows are in
 [`docs/threat-model.md`](docs/threat-model.md).
@@ -56,7 +70,7 @@ The detailed trust boundaries and data flows are in
 ## Repository layout
 
 ```text
-architecture/                 Diagram model, vendored AWS icons, generated output
+architecture/                 Editable draw.io diagram, exports, layout gate
 app/                          RDS-backed demonstration API
 docs/                         Deployment, security, cost, and response guides
 evidence/                     Evidence checklist and exported lab artifacts
@@ -93,8 +107,8 @@ terraform apply tfplan
 Generated artifacts are checked the same way:
 
 ```bash
-python3 architecture/render.py --check   # diagram model vs committed SVG/MMD
-python3 -m unittest discover -s tests    # Lambda unit tests
+python3 architecture/build_drawio.py --check  # diagram layout + drift gate
+python3 -m unittest discover -s tests         # Lambda unit tests
 ```
 
 ## Security constraints

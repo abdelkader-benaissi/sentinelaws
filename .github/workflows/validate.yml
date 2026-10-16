@@ -46,7 +46,7 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Check architecture artifacts are current
-        run: python3 architecture/render.py --check
+        run: python3 architecture/build_drawio.py --check
 
   checkov:
     runs-on: ubuntu-latest
