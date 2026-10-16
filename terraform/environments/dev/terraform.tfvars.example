@@ -1,7 +1,7 @@
 aws_region        = "us-east-1"
 availability_zones = ["us-east-1a", "us-east-1b"]
 owner             = "abdelkader-benaissi"
-deployment_profile = "lab"
+deployment_profile = "ha"
 
 # Import or request an ACM certificate in aws_region, then use a matching name.
 certificate_arn    = "arn:aws:acm:us-east-1:123456789012:certificate/replace-me"
@@ -13,6 +13,7 @@ route53_zone_id = null
 # Set to an address you control, or leave null to skip email subscription.
 alert_email = null
 
-# Use deployment_profile = "ha" only for final availability validation. It creates
-# two application instances, one NAT Gateway per AZ, Multi-AZ RDS, and deletion
-# protection. The lab profile remains chargeable but is cheaper and disposable.
+# deployment_profile = "ha" matches the architecture diagram: two application
+# instances, one NAT Gateway per AZ, Multi-AZ RDS, and deletion protection.
+# Use deployment_profile = "lab" for a cheaper, disposable single-AZ run. Both
+# profiles are chargeable; review docs/cost-controls.md before applying.

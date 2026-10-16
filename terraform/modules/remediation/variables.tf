@@ -4,6 +4,11 @@ variable "kms_key_arn" { type = string }
 variable "alert_topic_arn" { type = string }
 variable "waf_ip_set_id" { type = string }
 variable "waf_ip_set_name" { type = string }
+variable "autoscaling_group_arn" {
+  type        = string
+  description = "ARN of the Auto Scaling group that runs the contained instances."
+}
+
 variable "quarantine_source_dir" { type = string }
 variable "waf_block_source_dir" { type = string }
 variable "incident_ttl_days" {

@@ -165,6 +165,7 @@ module "remediation" {
   alert_topic_arn       = module.detection.alert_topic_arn
   waf_ip_set_id         = module.application.waf_ip_set_id
   waf_ip_set_name       = module.application.waf_ip_set_name
+  autoscaling_group_arn = module.application.autoscaling_group_arn
   quarantine_source_dir = abspath("${path.root}/../../../lambda/quarantine_instance")
   waf_block_source_dir  = abspath("${path.root}/../../../lambda/waf_ip_block")
   incident_ttl_days     = 90

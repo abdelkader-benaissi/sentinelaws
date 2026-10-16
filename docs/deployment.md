@@ -67,9 +67,25 @@ aws securityhub describe-hub
 ```
 
 The EC2 instances must have no public IP, RDS must report `Public=false` and
-`Encrypted=true`, and no security group should allow inbound TCP/22. For final
-availability evidence, change `deployment_profile` to `ha`, review the cost
-increase in the saved plan, and verify two healthy targets across both AZs.
+`Encrypted=true`, and no security group should allow inbound TCP/22. The
+shipped `deployment_profile` is `ha`, which matches the architecture diagram:
+two healthy targets across both AZs, one NAT Gateway per AZ, Multi-AZ RDS, and
+deletion protection. Set `deployment_profile = "lab"` only for a cheaper
+disposable single-AZ run, and note that a `lab` plan no longer matches the
+diagram.
+
+## Architecture diagram
+
+The diagram is generated, not hand-edited. After any change to `terraform/`:
+
+```bash
+python3 architecture/render.py          # SVG + PNG + Mermaid from one model
+python3 architecture/render.py --check  # what CI runs; fails on drift
+```
+
+The official AWS Architecture Icons are vendored in `architecture/icons/`, so
+rendering needs no network access. Only the PNG export needs
+`pip install cairosvg`; the SVG and Mermaid views render without it.
 
 ## Teardown
 

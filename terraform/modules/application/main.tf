@@ -310,7 +310,7 @@ resource "aws_launch_template" "app" {
     Type=simple
     User=nobody
     Environment=ENVIRONMENT=${var.environment}
-    Environment=AWS_REGION=${data.aws_region.current.name}
+    Environment=AWS_REGION=${data.aws_region.current.region}
     Environment=DB_HOST=${var.db_endpoint}
     Environment=DB_NAME=${var.db_name}
     Environment=DB_SECRET_ARN=${var.db_secret_arn}
@@ -342,7 +342,10 @@ resource "aws_launch_template" "app" {
 
   tag_specifications {
     resource_type = "volume"
-    tags          = merge(var.tags, { Name = "${var.name}-app-volume" })
+    tags = merge(var.tags, {
+      Name               = "${var.name}-app-volume"
+      SentinelAWSManaged = "true"
+    })
   }
 
   update_default_version = true
@@ -359,6 +362,10 @@ resource "aws_autoscaling_group" "app" {
   health_check_type         = "ELB"
   health_check_grace_period = 300
   target_group_arns         = [aws_lb_target_group.app.arn]
+  # Containment puts a compromised instance into Standby before isolating it.
+  # Scale-in protection keeps the group from terminating that instance through
+  # a scale-in event while it is being preserved for forensics.
+  protect_from_scale_in = true
 
   launch_template {
     id      = aws_launch_template.app.id
