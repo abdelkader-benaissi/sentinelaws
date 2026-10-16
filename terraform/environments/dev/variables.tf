@@ -35,9 +35,9 @@ variable "alert_email" {
 }
 
 variable "deployment_profile" {
-  description = "lab uses lower-cost single-instance/single-NAT defaults; ha enables multi-AZ capacity and deletion protection."
+  description = "ha matches the architecture diagram (two instances, one NAT Gateway per AZ, Multi-AZ RDS, deletion protection); lab is a cheaper disposable single-AZ variant."
   type        = string
-  default     = "lab"
+  default     = "ha"
 
   validation {
     condition     = contains(["lab", "ha"], var.deployment_profile)

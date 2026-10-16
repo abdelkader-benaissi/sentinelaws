@@ -119,7 +119,42 @@ data "aws_iam_policy_document" "quarantine" {
   statement {
     sid       = "QuarantineNetworkInterfaces"
     actions   = ["ec2:ModifyNetworkInterfaceAttribute"]
-    resources = ["arn:${data.aws_partition.current.partition}:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*"]
+    resources = ["arn:${data.aws_partition.current.partition}:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:network-interface/*"]
+  }
+
+  # Containment order matters. An instance left in service while its security
+  # group is swapped out fails the ELB health check, and a group with
+  # health_check_type = "ELB" then terminates and replaces it - destroying the
+  # evidence the quarantine exists to preserve. Standby pauses the instance
+  # without terminating it; the snapshot preserves the volumes for analysis.
+  statement {
+    sid       = "FindContainedInstanceAutoScalingGroup"
+    actions   = ["autoscaling:DescribeAutoScalingInstances"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "EnterStandbyForContainedInstance"
+    actions   = ["autoscaling:EnterStandby"]
+    resources = [var.autoscaling_group_arn]
+  }
+
+  statement {
+    sid       = "SnapshotContainedInstanceVolumes"
+    actions   = ["ec2:CreateSnapshot"]
+    resources = ["arn:${data.aws_partition.current.partition}:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:volume/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/SentinelAWSManaged"
+      values   = ["true"]
+    }
+  }
+
+  statement {
+    sid       = "TagForensicSnapshots"
+    actions   = ["ec2:CreateTags"]
+    resources = ["arn:${data.aws_partition.current.partition}:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:snapshot/*"]
   }
 
   statement {
@@ -161,7 +196,7 @@ data "aws_iam_policy_document" "waf_block" {
       "wafv2:UpdateIPSet"
     ]
     resources = [
-      "arn:${data.aws_partition.current.partition}:wafv2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:regional/ipset/${var.waf_ip_set_name}/${var.waf_ip_set_id}"
+      "arn:${data.aws_partition.current.partition}:wafv2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:regional/ipset/${var.waf_ip_set_name}/${var.waf_ip_set_id}"
     ]
   }
 

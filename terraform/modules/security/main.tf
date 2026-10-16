@@ -28,7 +28,7 @@ data "aws_iam_policy_document" "kms" {
       identifiers = [
         "cloudtrail.amazonaws.com",
         "config.amazonaws.com",
-        "logs.${data.aws_region.current.name}.amazonaws.com",
+        "logs.${data.aws_region.current.region}.amazonaws.com",
         "sns.amazonaws.com",
         "sqs.amazonaws.com",
         "events.amazonaws.com",
@@ -134,7 +134,7 @@ data "aws_iam_policy_document" "audit_bucket" {
     condition {
       test     = "StringEquals"
       variable = "aws:SourceArn"
-      values   = ["arn:${data.aws_partition.current.partition}:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.name}"]
+      values   = ["arn:${data.aws_partition.current.partition}:cloudtrail:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:trail/${var.name}"]
     }
   }
 
@@ -151,7 +151,7 @@ data "aws_iam_policy_document" "audit_bucket" {
     condition {
       test     = "StringEquals"
       variable = "aws:SourceArn"
-      values   = ["arn:${data.aws_partition.current.partition}:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.name}"]
+      values   = ["arn:${data.aws_partition.current.partition}:cloudtrail:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:trail/${var.name}"]
     }
   }
 
