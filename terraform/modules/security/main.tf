@@ -28,7 +28,6 @@ data "aws_iam_policy_document" "kms" {
       identifiers = [
         "cloudtrail.amazonaws.com",
         "config.amazonaws.com",
-        "logs.${data.aws_region.current.region}.amazonaws.com",
         "sns.amazonaws.com",
         "sqs.amazonaws.com",
         "events.amazonaws.com",
@@ -40,6 +39,48 @@ data "aws_iam_policy_document" "kms" {
       test     = "StringEquals"
       variable = "aws:SourceAccount"
       values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  # CloudWatch Logs scopes key use with the log-group encryption context, not
+  # aws:SourceAccount. This is the account-wide form from the CloudWatch Logs
+  # KMS guide.
+  statement {
+    sid = "CloudWatchLogsEncryption"
+    actions = [
+      "kms:Decrypt",
+      "kms:Describe*",
+      "kms:Encrypt",
+      "kms:GenerateDataKey*",
+      "kms:ReEncrypt*"
+    ]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["logs.${data.aws_region.current.region}.amazonaws.com"]
+    }
+    condition {
+      test     = "ArnLike"
+      variable = "kms:EncryptionContext:aws:logs:arn"
+      values   = ["arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"]
+    }
+  }
+
+  # CloudWatch alarms and EventBridge rules publish to the KMS-encrypted alert
+  # topic. SNS documents that EventBridge-to-encrypted-topic delivery does not
+  # support aws:SourceAccount/aws:SourceArn conditions in the key policy, so the
+  # restriction lives in the SNS topic policy instead: only this account's
+  # alarms and the named EventBridge rule may publish.
+  statement {
+    sid       = "AlertTopicPublishers"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey*"]
+    resources = ["*"]
+    principals {
+      type = "Service"
+      identifiers = [
+        "cloudwatch.amazonaws.com",
+        "events.amazonaws.com"
+      ]
     }
   }
 }
@@ -253,7 +294,6 @@ resource "aws_cloudtrail" "this" {
   kms_key_id                    = aws_kms_key.this.arn
   cloud_watch_logs_group_arn    = "${aws_cloudwatch_log_group.cloudtrail.arn}:*"
   cloud_watch_logs_role_arn     = aws_iam_role.cloudtrail.arn
-  sns_topic_name                = split(":", var.alert_topic_arn)[5]
 
   depends_on = [aws_s3_bucket_policy.audit, aws_iam_role_policy.cloudtrail_logs]
   tags       = var.tags
@@ -308,12 +348,18 @@ resource "aws_config_configuration_recorder_status" "this" {
 }
 
 locals {
+  # A NON_COMPLIANT result from any of these rules is routed to the alert topic
+  # by the detection module's EventBridge rule.
   config_rules = {
+    cloudtrail_enabled         = "CLOUD_TRAIL_ENABLED"
+    ec2_imdsv2_check           = "EC2_IMDSV2_CHECK"
     encrypted_volumes          = "ENCRYPTED_VOLUMES"
     incoming_ssh_disabled      = "INCOMING_SSH_DISABLED"
+    rds_public_access_check    = "RDS_INSTANCE_PUBLIC_ACCESS_CHECK"
     rds_storage_encrypted      = "RDS_STORAGE_ENCRYPTED"
     s3_public_read_prohibited  = "S3_BUCKET_PUBLIC_READ_PROHIBITED"
     s3_public_write_prohibited = "S3_BUCKET_PUBLIC_WRITE_PROHIBITED"
+    vpc_flow_logs_enabled      = "VPC_FLOW_LOGS_ENABLED"
   }
 }
 

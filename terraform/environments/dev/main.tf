@@ -10,22 +10,23 @@ locals {
   }
 }
 
-module "detection" {
-  source = "../../modules/detection"
-
-  name        = local.name
-  alert_email = var.alert_email
-  tags        = local.common_tags
-}
-
 module "security" {
   source = "../../modules/security"
 
   name                       = local.name
-  alert_topic_arn            = module.detection.alert_topic_arn
   force_destroy_audit_bucket = !local.high_availability
   log_retention_days         = var.log_retention_days
   tags                       = local.common_tags
+}
+
+module "detection" {
+  source = "../../modules/detection"
+
+  name                      = local.name
+  kms_key_arn               = module.security.kms_key_arn
+  cloudtrail_log_group_name = module.security.cloudtrail_log_group_name
+  alert_email               = var.alert_email
+  tags                      = local.common_tags
 }
 
 module "networking" {
