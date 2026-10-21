@@ -25,10 +25,10 @@
 | Threat | Prevent | Detect | Respond |
 |---|---|---|---|
 | Internet exploitation | WAF managed rules, patched AMI, private compute | WAF logs, application logs, GuardDuty | Block source, replace instance |
-| Stolen instance credentials | Scoped IAM role, IMDSv2 | GuardDuty, CloudTrail | Quarantine tagged instance and investigate |
-| Public storage exposure | S3 Block Public Access, bucket policy | AWS Config and Security Hub | Controlled Config remediation in Phase 2 |
+| Stolen instance credentials | Scoped IAM role, IMDSv2 | GuardDuty, CloudTrail, IAM policy-change alarm | Quarantine tagged instance and investigate |
+| Public storage exposure | S3 Block Public Access, bucket policy | AWS Config and Security Hub | Config `NON_COMPLIANT` alert on SNS; controlled remediation in a later phase |
 | Database exposure | Isolated subnet, no public endpoint, SG reference | Config and VPC Flow Logs | Revoke path, rotate RDS secret |
-| Log deletion or tampering | Dedicated encrypted bucket, versioning, key separation | CloudTrail validation | Preserve evidence and investigate principal |
+| Log deletion or tampering | Dedicated encrypted bucket, versioning, key separation | CloudTrail validation; CloudTrail, Config and KMS change alarms | Preserve evidence and investigate principal |
 | Terraform credential leakage | OIDC in CI, ignored local state and tfvars | Secret scanning | Revoke session/role and rotate affected secret |
 
 ## Automation safety invariants
