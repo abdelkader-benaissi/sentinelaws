@@ -175,9 +175,12 @@ data "aws_iam_policy_document" "quarantine" {
     resources = [aws_sqs_queue.quarantine_dlq.arn]
   }
 
+  # The alert topic, the DLQ and the incident ledger are encrypted with the
+  # project key. Publishing to an encrypted SNS topic or SQS queue needs
+  # GenerateDataKey as well as Decrypt.
   statement {
-    sid       = "DecryptConfiguration"
-    actions   = ["kms:Decrypt"]
+    sid       = "UseProjectKey"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey*"]
     resources = [var.kms_key_arn]
   }
 }
@@ -218,9 +221,12 @@ data "aws_iam_policy_document" "waf_block" {
     resources = [aws_sqs_queue.waf_block_dlq.arn]
   }
 
+  # The alert topic, the DLQ and the incident ledger are encrypted with the
+  # project key. Publishing to an encrypted SNS topic or SQS queue needs
+  # GenerateDataKey as well as Decrypt.
   statement {
-    sid       = "DecryptConfiguration"
-    actions   = ["kms:Decrypt"]
+    sid       = "UseProjectKey"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey*"]
     resources = [var.kms_key_arn]
   }
 }

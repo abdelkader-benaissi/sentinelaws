@@ -16,6 +16,7 @@ cost-aware, single-account training environment.
 | CKV_AWS_145 | ALB access-log delivery uses SSE-S3 | Follow current ELB encryption support and organizational requirements |
 | CKV_AWS_144 | Cross-Region replication adds recurring lab cost | Enable replication for production disaster recovery |
 | CKV2_AWS_5 | Scanner cannot resolve the app SG attachment across the module boundary | Validate attachment in the Terraform plan |
+| CKV_AWS_252 | A trail SNS topic only announces log-file deliveries; security alerts come from CloudTrail metric filters and alarms instead | Keep metric-filter alarms; add a delivery topic only if a consumer needs it |
 
 Changing this list requires security review. `soft_fail` is disabled, so any
 new, non-allowlisted failure blocks the pull request.

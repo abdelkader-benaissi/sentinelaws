@@ -145,6 +145,7 @@ is free. See [`docs/cost-controls.md`](docs/cost-controls.md).
   Standby state, and forensic snapshot IDs
 - WAF IP insertion, audit record, and controlled removal
 - Security Hub and Config results
+- Config non-compliance and CloudTrail alarm notifications on the alert topic
 - Successful destroy with retained evidence exported separately
 
 ## License

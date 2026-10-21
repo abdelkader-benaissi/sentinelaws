@@ -103,8 +103,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
     status = "Enabled"
     filter {}
     expiration { days = var.access_log_retention_days }
+    noncurrent_version_expiration { noncurrent_days = 7 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
+
+  depends_on = [aws_s3_bucket_versioning.alb_logs]
 }
 
 resource "aws_s3_bucket_notification" "alb_logs" {
@@ -363,9 +366,9 @@ resource "aws_autoscaling_group" "app" {
   health_check_grace_period = 300
   target_group_arns         = [aws_lb_target_group.app.arn]
   # Containment puts a compromised instance into Standby before isolating it.
-  # Scale-in protection keeps the group from terminating that instance through
-  # a scale-in event while it is being preserved for forensics.
-  protect_from_scale_in = true
+  # Auto Scaling neither health-checks nor scales in a Standby instance, so the
+  # evidence survives without group-wide scale-in protection (which would also
+  # stop the target-tracking policy from ever removing capacity).
 
   launch_template {
     id      = aws_launch_template.app.id

@@ -15,4 +15,5 @@ or unredacted console screenshots.
 - [ ] WAF public IP insertion, duplicate replay, and private-IP refusal
 - [ ] CloudTrail S3/CloudWatch delivery, WAF logs, ALB logs, and VPC Flow Logs
 - [ ] Security Hub and AWS Config results
+- [ ] Config NON_COMPLIANT alert and a CloudTrail metric-filter alarm on SNS
 - [ ] Reviewed destroy plan and post-destroy resource check
