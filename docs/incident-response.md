@@ -57,8 +57,10 @@ To exercise it:
    termination. Never treat the contained host as trusted again.
 
 The function must refuse an untagged instance. That negative test is mandatory.
-The ASG also sets `protect_from_scale_in = true`, so a scale-in event cannot
-terminate a contained instance while it is being preserved.
+Standby is what keeps the evidence alive: Auto Scaling neither health-checks
+nor scales in an instance in Standby, so the group cannot terminate it while it
+is being preserved. Group-wide scale-in protection is therefore not needed, and
+the group can still scale in normally.
 
 ## Workflow 3: WAF source blocking
 
@@ -92,3 +94,21 @@ For each workflow capture:
 | Audit | CloudTrail event ID and principal |
 | Notification | SNS delivery timestamp |
 | Recovery | Replacement or rollback procedure |
+
+## Workflow 4: Configuration and audit alerts
+
+Two non-GuardDuty paths feed the same SNS alert topic:
+
+- **AWS Config** publishes every rule evaluation to EventBridge. The
+  `config-noncompliant` rule forwards only transitions to `NON_COMPLIANT`, for
+  example after adding a temporary inbound TCP/22 rule to a test security group
+  (`incoming-ssh-disabled`). Remove the rule afterwards and confirm the resource
+  returns to `COMPLIANT`.
+- **CloudTrail** delivers to CloudWatch Logs, where seven metric filters (root
+  usage, console sign-in without MFA, IAM policy, CloudTrail, Config, KMS key,
+  and security-group changes) drive CloudWatch alarms. Creating or deleting a
+  security group, including during `terraform apply`, raises the
+  `security-group-changes` alarm; that is expected.
+
+Capture the SNS message, the alarm or rule name, and the CloudTrail event that
+caused it.

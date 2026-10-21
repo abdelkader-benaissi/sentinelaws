@@ -9,6 +9,8 @@
 - GuardDuty and Security Hub analysis volume
 - CloudWatch Logs ingestion and retention
 - CloudTrail events outside the free management-event allowance
+- Seven CloudWatch alarms on CloudTrail metric filters, and AWS Config rule
+  evaluations for the nine managed rules
 
 ## Lab defaults
 

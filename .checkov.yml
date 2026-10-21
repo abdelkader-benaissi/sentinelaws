@@ -26,3 +26,7 @@ skip-check:
   - CKV_AWS_144
   # The app SG attachment crosses a Terraform module boundary (scanner limitation).
   - CKV2_AWS_5
+  # CloudTrail's SNS option notifies on every log-file delivery, which is noise,
+  # not a security signal. CloudTrail alerting uses CloudWatch metric filters and
+  # alarms on the alert topic instead (modules/detection).
+  - CKV_AWS_252

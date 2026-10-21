@@ -64,6 +64,8 @@ aws rds describe-db-instances \
 aws cloudtrail get-trail-status --name sentinelaws-dev
 aws guardduty list-detectors
 aws securityhub describe-hub
+aws cloudwatch describe-alarms --alarm-name-prefix sentinelaws-dev \
+  --query 'MetricAlarms[].{Name:AlarmName,State:StateValue}'
 ```
 
 The EC2 instances must have no public IP, RDS must report `Public=false` and
@@ -87,8 +89,9 @@ drawio --no-sandbox -x -f png --width 3600 -o architecture/sentinelaws.png archi
 ```
 
 `build_drawio.py` fails rather than emit a diagram whose icons, labels,
-connectors or containers overlap, and the icons come from draw.io's built-in
-AWS4 shape library, so no assets are vendored. The file opens in draw.io /
+connectors, connector labels or container titles overlap, and every shape comes
+from draw.io's built-in AWS4 library (official AWS Architecture Icons and group
+shapes), so no assets are vendored. The file opens in draw.io /
 diagrams.net for manual editing.
 
 ## Teardown

@@ -18,14 +18,18 @@ AWS Solutions Architect Associate graduation project catalogue.
 - AWS WAF managed rules, rate limiting, and a dynamic incident-response IP set
 - Customer-managed KMS keys for application data, logs, and RDS credentials
 - CloudTrail-to-S3 and CloudWatch, AWS Config, GuardDuty, Security Hub, and encrypted VPC Flow Logs
+- Alerting on one KMS-encrypted SNS topic from three sources: GuardDuty
+  responses, AWS Config `NON_COMPLIANT` results (EventBridge), and seven
+  CloudTrail metric-filter alarms (root use, console sign-in without MFA, IAM
+  policy, CloudTrail, Config, KMS key, and security-group changes)
 - EventBridge-driven EC2 quarantine and WAF IP blocking workflows
 - Containment that pauses a compromised instance in its Auto Scaling group and
   snapshots its volumes before isolating it, so the evidence survives
 - Encrypted dead-letter queues, idempotency, bounded concurrency, and X-Ray tracing
 - SSM Session Manager access with no inbound SSH rule or bastion host
-- Architecture diagram as an editable draw.io file using the official AWS icon
-  set, with a layout checker that refuses to emit an overlapping diagram and a
-  CI drift gate
+- Architecture diagram as an editable draw.io file using the official AWS
+  icons and group shapes, with a layout checker that refuses to emit an
+  overlapping diagram and a CI drift gate
 - Enforced Terraform validation, Checkov policy gate, and Python tests in GitHub Actions
 
 ## Architecture
@@ -35,14 +39,37 @@ AWS Solutions Architect Associate graduation project catalogue.
 The diagram is an editable draw.io file: [`architecture/sentinelaws.drawio`](architecture/sentinelaws.drawio),
 with [`sentinelaws.svg`](architecture/sentinelaws.svg) and
 [`sentinelaws.png`](architecture/sentinelaws.png) exported from it for reading
-and for this README. It uses the official AWS Architecture Icons through
-draw.io's built-in AWS4 shape library, so no icon assets are vendored.
+and for this README. Every shape comes from the official AWS Architecture
+Icons in draw.io's built-in AWS4 library, with the library's own styles:
+service icons for AWS services, resource icons for resources such as the NAT
+gateway or an EC2 instance, and the AWS group shapes for the AWS Cloud, Region,
+VPC, Availability Zones, public and private subnets, and the Auto Scaling group.
+No icon assets are vendored, recoloured, or stretched.
 
-It reflects the shipped `ha` deployment profile: the ALB in the public subnets
-across both AZs, EC2 Auto Scaling instances in the private application subnets,
-RDS PostgreSQL Multi-AZ (primary + standby) in the isolated database subnets,
-one NAT Gateway per AZ, and the detection and response chain from GuardDuty
-through EventBridge to the two containment Lambdas.
+It reflects the shipped `ha` deployment profile and reads as three connected
+flows:
+
+- **Request path (blue).** Users resolve the Route 53 alias and reach the
+  Internet gateway, then the one internet-facing ALB, which has a node in the
+  public subnet of each AZ and carries the ACM certificate and the WAF web ACL.
+  The ALB forwards to EC2 instances in the Auto Scaling group in the private
+  application subnets. They reach RDS PostgreSQL Multi-AZ (primary in AZ A,
+  synchronous standby in AZ B) in the private database subnets, and the
+  internet through the NAT gateway in their own AZ.
+- **Detection (amber).** GuardDuty receives CloudTrail management events, VPC
+  Flow Logs and Route 53 Resolver DNS query logs. CloudTrail also writes to
+  the S3 audit bucket and to CloudWatch Logs, whose metric filters drive
+  CloudWatch alarms. AWS Config writes history to S3 and feeds Security Hub,
+  which also aggregates GuardDuty findings.
+- **Response and alerting (red).** An EventBridge rule sends GuardDuty
+  findings of severity 7 or higher to two Lambdas. The quarantine Lambda acts
+  on the EC2 instance itself: it puts the instance into Standby in its Auto
+  Scaling group so it is kept rather than terminated, snapshots its EBS
+  volumes, and swaps its security groups for the no-rules quarantine group.
+  The WAF block Lambda adds the attacker's address to the WAF IP set that the
+  web ACL's first rule blocks. Both record to DynamoDB and alert on SNS, and
+  failed deliveries land in SQS dead-letter queues. A second EventBridge rule
+  sends Config `NON_COMPLIANT` results to SNS, as do the CloudTrail alarms.
 
 The layout is generated and checked, not hand-nudged:
 
@@ -51,10 +78,11 @@ python3 architecture/build_drawio.py          # write the .drawio
 python3 architecture/build_drawio.py --check   # layout + drift gate (CI runs this)
 ```
 
-`build_drawio.py` refuses to emit a file whose icons, labels or containers
-overlap: it computes every bounding box and fails on a collision, including a
-connector that would run through an icon or a label. Re-export the
-images after any change:
+`build_drawio.py` refuses to emit a file whose icons, labels, container titles
+or connector labels overlap: it computes every bounding box and fails on a
+collision, including a connector that would run through an icon, a label or a
+container title, or two connectors sharing a segment. Re-export the images
+after any change:
 
 ```bash
 drawio --no-sandbox -x -f svg -o architecture/sentinelaws.svg architecture/sentinelaws.drawio
@@ -145,6 +173,7 @@ is free. See [`docs/cost-controls.md`](docs/cost-controls.md).
   Standby state, and forensic snapshot IDs
 - WAF IP insertion, audit record, and controlled removal
 - Security Hub and Config results
+- Config non-compliance and CloudTrail alarm notifications on the alert topic
 - Successful destroy with retained evidence exported separately
 
 ## License
